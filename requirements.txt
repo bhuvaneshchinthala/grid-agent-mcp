@@ -1,0 +1,6 @@
+ollama
+pandapower
+numpy
+pandas
+networkx
+pydantic
