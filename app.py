@@ -1,5 +1,5 @@
 """
-Enhanced Faraday Grid Control UI
+Enhanced VoltAI Grid Control UI
 Includes predictive violations, smart alarms, digital twin scenarios, and more
 """
 
@@ -33,12 +33,12 @@ from thermal_control_agent import ThermalControlAgent
 # PAGE CONFIG
 # ============================================================================
 st.set_page_config(
-    page_title="Faraday Advanced – LLM-Powered Smart Grid Control",
+    page_title="VoltAI Advanced – LLM-Powered Smart Grid Control",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.title("⚡ Faraday Advanced – AI-Powered Smart Grid Control")
+st.title("⚡ VoltAI Advanced – AI-Powered Smart Grid Control")
 
 # ============================================================================
 # INITIALIZE SESSION STATE
@@ -98,7 +98,7 @@ def load_network():
 # ============================================================================
 if tab_mode == "🏠 Home":
     st.markdown("""
-    ## Welcome to Faraday Advanced
+    ## Welcome to VoltAI Advanced
     
     **Next-Generation AI-Powered Power Grid Control System**
     
@@ -586,5 +586,5 @@ elif tab_mode == "💾 System Memory" and run_btn:
 # FOOTER
 # ============================================================================
 st.markdown("---")
-st.caption("Faraday Advanced v2.0 • Next-Gen AI Grid Control • " +
+st.caption("VoltAI Advanced v2.0 • Next-Gen AI Grid Control • " +
           "Pandapower + Streamlit + Mistral + Advanced ML")

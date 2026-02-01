@@ -1,4 +1,4 @@
-# ⚡ Faraday - AI-Powered Smart Grid Control System
+# ⚡ VoltAI - AI-Powered Smart Grid Control System
 
 <div align="center">
 
@@ -17,7 +17,7 @@
 
 ## 🎯 Overview
 
-Faraday is an advanced AI-powered smart grid control system that uses multi-agent architecture with LLM reasoning to detect, analyze, and automatically resolve power grid violations. Built with pandapower for electrical network simulation and Streamlit for real-time visualization.
+VoltAI is an advanced AI-powered smart grid control system that uses multi-agent architecture with LLM reasoning to detect, analyze, and automatically resolve power grid violations. Built with pandapower for electrical network simulation and Streamlit for real-time visualization.
 
 ## 🌟 Features
 
@@ -45,7 +45,7 @@ Faraday is an advanced AI-powered smart grid control system that uses multi-agen
 - Load curtailment/shedding
 - Topology switching (open/close lines)
 - Capacitor bank switching
-- **Battery storage integration**
+- Battery storage integration
 
 ### 🔋 **Battery Storage**
 - Add battery units at any bus
@@ -155,5 +155,5 @@ Contributions welcome! Please read our contributing guidelines.
 ---
 
 <div align="center">
-Made with ⚡ by the Faraday Team
+Made with ⚡ by the VoltAI Team
 </div>

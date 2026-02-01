@@ -1,5 +1,5 @@
 """
-⚡ Faraday Power Grid Dashboard - Advanced Edition
+⚡ VoltAI Power Grid Dashboard - Advanced Edition
 AI-Powered Electrical Network Violation Analysis & Resolution
 With Workflow Results, Interactive Action Plan, and Battery Storage
 """
@@ -53,7 +53,7 @@ except:
 # PAGE CONFIG
 # ============================================================================
 st.set_page_config(
-    page_title="Faraday Power Grid Dashboard",
+    page_title="VoltAI Power Grid Dashboard",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"

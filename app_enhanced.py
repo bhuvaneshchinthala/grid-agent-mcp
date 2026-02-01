@@ -1,5 +1,5 @@
 """
-⚡ Faraday Power Grid Dashboard
+⚡ VoltAI Power Grid Dashboard
 AI-Powered Electrical Network Violation Analysis & Resolution
 With Dark/Light Theme Toggle
 """
@@ -46,7 +46,7 @@ except:
 # PAGE CONFIG
 # ============================================================================
 st.set_page_config(
-    page_title="Faraday Power Grid Dashboard",
+    page_title="VoltAI Power Grid Dashboard",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -653,7 +653,7 @@ with st.sidebar:
 # Header
 st.markdown("""
 <div class="main-header">
-    <h1>⚡ Faraday Power Grid Dashboard</h1>
+    <h1>⚡ VoltAI Power Grid Dashboard</h1>
     <p>AI-Powered Electrical Network Violation Analysis & Resolution</p>
 </div>
 """, unsafe_allow_html=True)
@@ -864,7 +864,7 @@ if st.session_state.network_loaded and st.session_state.net is not None:
 else:
     st.markdown("""
     <div class="section-card" style="text-align: center; padding: 60px;">
-        <h2>Welcome to Faraday</h2>
+        <h2>Welcome to VoltAI</h2>
         <p>Select a network and click "Load Network & Analyze" to begin.</p>
     </div>
     """, unsafe_allow_html=True)

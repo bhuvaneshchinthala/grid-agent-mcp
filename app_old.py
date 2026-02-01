@@ -18,14 +18,14 @@ from grid_agent.utils.graph_visualizer import plot_network
 # PAGE CONFIG
 # -------------------------------------------------
 st.set_page_config(
-    page_title="Faraday – Grid Control",
+    page_title="VoltAI – Grid Control",
     layout="wide"
 )
 
 # -------------------------------------------------
 # TITLE
 # -------------------------------------------------
-st.title("⚡ Faraday – LLM-Powered Power Grid Control")
+st.title("⚡ VoltAI – LLM-Powered Power Grid Control")
 st.markdown(
     """
 This demo shows an **LLM-driven multi-agent system** for power-grid monitoring,
@@ -183,6 +183,6 @@ if run_btn:
 # -------------------------------------------------
 st.markdown("---")
 st.caption(
-    "Faraday Demo • LLM-powered multi-agent grid control • "
+    "VoltAI Demo • LLM-powered multi-agent grid control • "
     "Pandapower + Streamlit + Mistral (Ollama)"
 )
