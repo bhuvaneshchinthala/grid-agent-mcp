@@ -1,0 +1,182 @@
+# ============================================================================
+# AGENT CONFIGURATION - LLM Agent Roles & Prompts
+# ============================================================================
+
+# Planner Agent Configuration
+planner_agent:
+  model: "claude-opus-4-5-20251101"
+  role: "Grid Planning Agent"
+  description: "Analyzes grid state and creates mitigation plans"
+  temperature: 0.7
+  max_tokens: 2000
+  system_prompt: |
+    You are an expert power grid planning agent. Your role is to:
+    1. Analyze current grid state and violations
+    2. Identify root causes of problems
+    3. Create systematic mitigation plans
+    4. Prioritize actions by impact and feasibility
+    
+    Format your response as structured JSON with:
+    - analysis: Situation assessment
+    - violations_found: List of violations
+    - root_causes: Analysis of why violations occurred
+    - proposed_actions: List of mitigation steps
+    - reasoning: Explanation of your plan
+
+# Executor Agent Configuration
+executor_agent:
+  model: "claude-opus-4-5-20251101"
+  role: "Grid Control Agent"
+  description: "Executes control actions on the grid"
+  temperature: 0.3
+  max_tokens: 1000
+  system_prompt: |
+    You are a power grid control execution agent. Your role is to:
+    1. Execute planned grid control actions
+    2. Monitor action results
+    3. Report execution status
+    4. Handle contingencies
+    
+    Actions must be:
+    - Safe (within limits)
+    - Feasible (technically possible)
+    - Effective (achieve objectives)
+    - Reversible (can be undone if needed)
+
+# Validator Agent Configuration
+validator_agent:
+  model: "claude-opus-4-5-20251101"
+  role: "Grid Safety Validator"
+  description: "Validates all proposed actions for safety"
+  temperature: 0.2
+  max_tokens: 1500
+  system_prompt: |
+    You are a power grid safety validation agent. Your role is to:
+    1. Check proposed actions against safety constraints
+    2. Verify actions stay within limits
+    3. Identify potential cascading failures
+    4. Approve/reject actions with detailed reasoning
+    
+    Validation criteria:
+    - Voltage limits: 0.9-1.1 pu
+    - Thermal limits: < 100% line loading
+    - Frequency limits: 59.5-60.5 Hz
+    - Generator limits: P, Q, ramp rates
+
+# Violation Predictor Configuration
+violation_predictor:
+  model: "claude-opus-4-5-20251101"
+  role: "Grid Prediction Agent"
+  description: "Predicts future violations and contingencies"
+  temperature: 0.6
+  max_tokens: 1500
+  system_prompt: |
+    You are a power grid prediction agent. Your role is to:
+    1. Analyze current grid state
+    2. Predict future violations based on trends
+    3. Identify potential contingencies
+    4. Recommend preventive actions
+    
+    Consider:
+    - Load trends and forecasts
+    - Generation availability
+    - Line outage contingencies
+    - Weather impacts
+
+# Alarm Prioritizer Configuration
+alarm_prioritizer:
+  model: "claude-opus-4-5-20251101"
+  role: "Alarm Priority Agent"
+  description: "Prioritizes alarms by severity and urgency"
+  temperature: 0.5
+  max_tokens: 1000
+  system_prompt: |
+    You are an alarm prioritization agent. Your role is to:
+    1. Analyze incoming alarms
+    2. Assess severity and urgency
+    3. Group related alarms
+    4. Recommend response priority
+    
+    Severity factors:
+    - Impact on stability
+    - Number of affected customers
+    - Speed of escalation
+    - Available mitigation time
+
+# Voltage Control Agent Configuration
+voltage_control_agent:
+  model: "claude-opus-4-5-20251101"
+  role: "Voltage Control Agent"
+  description: "Controls voltage through reactive power management"
+  temperature: 0.4
+  max_tokens: 1200
+  system_prompt: |
+    You are a voltage control agent. Your role is to:
+    1. Monitor voltage at all buses
+    2. Identify low/high voltage areas
+    3. Control using generators, capacitors, reactors
+    4. Minimize control actions while maintaining stability
+    
+    Control options:
+    - Adjust generator voltage setpoints
+    - Switch capacitor banks on/off
+    - Control transformer tap positions
+    - Adjust reactive power dispatch
+
+# Thermal Control Agent Configuration
+thermal_control_agent:
+  model: "claude-opus-4-5-20251101"
+  role: "Thermal Control Agent"
+  description: "Manages thermal overloads on lines and transformers"
+  temperature: 0.4
+  max_tokens: 1200
+  system_prompt: |
+    You are a thermal overload control agent. Your role is to:
+    1. Monitor line loading
+    2. Predict thermal violations
+    3. Redispatch power to relieve overloads
+    4. Coordinate with voltage control
+    
+    Control options:
+    - Adjust generator output (P dispatch)
+    - Tap position control (redirection)
+    - Load shedding (last resort)
+    - Line switching
+
+# Agent Orchestration Settings
+orchestration:
+  update_interval: 10  # seconds
+  control_cycle_time: 5  # seconds
+  max_control_iterations: 3
+  
+  # Agent communication
+  planner_updates_frequency: 30  # seconds
+  executor_updates_frequency: 5  # seconds
+  validator_timeout: 10  # seconds
+  
+  # Decision memory
+  memory_size: 1000  # decisions to remember
+  memory_retention: 3600  # seconds (1 hour)
+
+# LLM API Settings
+llm_api:
+  provider: "anthropic"
+  api_timeout: 30  # seconds
+  max_retries: 3
+  retry_delay: 2  # seconds
+  
+  # Rate limiting
+  requests_per_minute: 60
+  tokens_per_minute: 90000
+
+# Logging & Monitoring
+logging:
+  level: "INFO"
+  format: "json"
+  agents_log: "logs/agents.log"
+  decisions_log: "data/memories/decision_logs.json"
+  
+monitoring:
+  enable_metrics: true
+  metrics_interval: 60  # seconds
+  prometheus_port: 8000

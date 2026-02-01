@@ -1,0 +1,551 @@
+# Faraday Advanced - System Architecture
+
+## 🏗️ Overall System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     FARADAY ADVANCED GRID CONTROL                   │
+└─────────────────────────────────────────────────────────────────────┘
+
+                              SCADA / REAL GRID
+                                     ↓
+                           ┌─────────────────┐
+                           │  Power Flow     │
+                           │  Solver (PyPF)  │
+                           └────────┬────────┘
+                                    ↓
+                ┌───────────────────┴───────────────────┐
+                ↓                                       ↓
+        ┌──────────────────┐              ┌─────────────────────┐
+        │  Violation       │              │  Observation        │
+        │  Detection       │              │  History            │
+        └────────┬─────────┘              └────────┬────────────┘
+                 ↓                                 ↓
+        ┌────────────────────────────────────────────┐
+        │  PREDICTIVE MODULE                         │
+        │  ├─ Violation Predictor (ML)               │
+        │  ├─ Trend Analysis                         │
+        │  └─ Forecasting Engine                     │
+        └─────┬──────────────────────────────────────┘
+              ↓
+        ┌────────────────────────────────────────────┐
+        │  ALARM & PRIORITIZATION LAYER              │
+        │  ├─ Alarm Generator                        │
+        │  ├─ Severity Ranking                       │
+        │  └─ Recommendation Engine                  │
+        └─────┬──────────────────────────────────────┘
+              ↓
+        ┌────────────────────────────────────────────┐
+        │  MULTI-AGENT PLANNING LAYER                │
+        │  ├─ Voltage Control Agent                  │
+        │  ├─ Thermal Control Agent                  │
+        │  ├─ Restoration Agent                      │
+        │  └─ General Planner Agent                  │
+        └─────┬──────────────────────────────────────┘
+              ↓
+        ┌────────────────────────────────────────────┐
+        │  SAFETY & VALIDATION LAYER                 │
+        │  ├─ Constraint Validator                   │
+        │  ├─ Conflict Detector                      │
+        │  └─ Safety Report Generator                │
+        └─────┬──────────────────────────────────────┘
+              ↓
+        ┌────────────────────────────────────────────┐
+        │  ACTION EXECUTION                          │
+        │  ├─ Execute on Grid Simulator (Digital)    │
+        │  └─ Send to Real SCADA (Future)            │
+        └─────┬──────────────────────────────────────┘
+              ↓
+        ┌────────────────────────────────────────────┐
+        │  LEARNING & MEMORY                         │
+        │  ├─ Record Successful Actions              │
+        │  ├─ Record Failed Actions                  │
+        │  ├─ Pattern Recognition                    │
+        │  └─ Continuous Improvement                 │
+        └────────────────────────────────────────────┘
+```
+
+---
+
+## 📊 Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           MAIN EXECUTION LOOP                        │
+└─────────────────────────────────────────────────────────────────────┘
+
+Every Cycle (Real-Time):
+  
+  1. SENSE PHASE (100ms)
+  ┌──────────────────────────────────┐
+  │ Read Grid State                  │
+  │ ├─ Bus voltages                  │
+  │ ├─ Line currents/loading         │
+  │ ├─ Generation output             │
+  │ └─ Load consumption              │
+  └──────────────┬───────────────────┘
+                 ↓
+  2. ANALYZE PHASE (100ms)
+  ┌──────────────────────────────────┐
+  │ Run Power Flow                   │
+  │ Detect Current Violations        │
+  │ Update Historical Data           │
+  └──────────────┬───────────────────┘
+                 ↓
+  3. PREDICT PHASE (200ms)
+  ┌──────────────────────────────────┐
+  │ Forecast Violations (N steps)    │
+  │ Assess Trend Direction           │
+  │ Calculate Confidence             │
+  └──────────────┬───────────────────┘
+                 ↓
+  4. ALERT PHASE (100ms)
+  ┌──────────────────────────────────┐
+  │ Generate Prioritized Alarms      │
+  │ Show Recommended Actions         │
+  │ Update Operator Dashboard        │
+  └──────────────┬───────────────────┘
+                 ↓
+  5. PLAN PHASE (150ms) - Parallel
+  ┌──────────────────────────────────┐
+  │ Voltage Agent Plans              │
+  │ Thermal Agent Plans              │
+  │ General Planner Plans            │
+  │ Coordinate Recommendations       │
+  └──────────────┬───────────────────┘
+                 ↓
+  6. VALIDATE PHASE (50ms)
+  ┌──────────────────────────────────┐
+  │ Safety Constraint Check          │
+  │ Conflict Detection               │
+  │ Feasibility Verification         │
+  └──────────────┬───────────────────┘
+                 ↓
+  7. EXECUTE PHASE (100ms)
+  ┌──────────────────────────────────┐
+  │ Apply Actions (Sequential)       │
+  │ Re-run Power Flow                │
+  │ Verify Improvement               │
+  └──────────────┬───────────────────┘
+                 ↓
+  8. LEARN PHASE (50ms)
+  ┌──────────────────────────────────┐
+  │ Record Action Outcome            │
+  │ Update Agent Memory              │
+  │ Recalculate Success Metrics      │
+  └──────────────────────────────────┘
+  
+  Total Cycle Time: ~750ms (configurable)
+  Can run multiple cycles/min for real-time operation
+```
+
+---
+
+## 🤖 Agent Interaction Model
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ORCHESTRATOR (Controller)                    │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓↑
+        ┌─────────────────────┼─────────────────────┐
+        ↓                     ↓                     ↓
+    ┌────────────────┐  ┌─────────────────┐  ┌──────────────────┐
+    │ VOLTAGE AGENT  │  │ THERMAL AGENT   │  │ GENERAL PLANNER  │
+    ├────────────────┤  ├─────────────────┤  ├──────────────────┤
+    │ Focus:         │  │ Focus:          │  │ Focus:           │
+    │ • Voltage      │  │ • Line Loading  │  │ • Coordination   │
+    │   stability    │  │ • Power Flow    │  │ • Complex cases  │
+    │ • Reactive     │  │ • Emergency     │  │ • Learning       │
+    │   power        │  │   response      │  │                  │
+    │ • Setpoints    │  │                 │  │                  │
+    │                │  │ Prompt:         │  │ Prompt:          │
+    │ Prompt:        │  │ "You are        │  │ "Coordinate      │
+    │ "You are       │  │  thermal        │  │  actions from    │
+    │  voltage       │  │  specialist"    │  │  all agents"     │
+    │  specialist"   │  │                 │  │                  │
+    │                │  │ Actions:        │  │ Actions:         │
+    │ Actions:       │  │ • Reduce gen    │  │ • Select best    │
+    │ • Adjust caps  │  │ • Shed load     │  │   strategy       │
+    │ • Increase gen │  │ • Switch lines  │  │ • Handle edge    │
+    │ • Reduce load  │  │ • Reroute flow  │  │   cases          │
+    └────────────────┘  └─────────────────┘  └──────────────────┘
+        ↓                     ↓                     ↓
+    ┌──────────────────────────────────────────────────────┐
+    │         SAFETY CONSTRAINT VALIDATOR                  │
+    │  Checks: voltage, loading, ramps, connectivity       │
+    └────────────┬─────────────────────────────────────────┘
+                 ↓
+    ┌──────────────────────────────────────────────────────┐
+    │         EXECUTOR (Apply to Grid Model)               │
+    │  Updates network and runs power flow                 │
+    └────────────┬─────────────────────────────────────────┘
+                 ↓
+    ┌──────────────────────────────────────────────────────┐
+    │    LEARNING MODULE (Memory Update)                   │
+    │  Records outcome, updates agent memory               │
+    └──────────────────────────────────────────────────────┘
+```
+
+---
+
+## 💾 Data Storage Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│               DATA STORAGE HIERARCHY                        │
+└─────────────────────────────────────────────────────────────┘
+
+┌─ RUNTIME MEMORY (Fast, Volatile)
+│  └─ Grid state (network)
+│  └─ Current violations
+│  └─ Recent predictions (buffer)
+│  └─ Active alarms
+│  └─ Agent plans
+│
+├─ SESSION MEMORY (Fast, Semi-Persistent)
+│  └─ Observation history (last 24 hours)
+│  └─ Active agent memory (current session)
+│  └─ Digital twin scenarios
+│
+└─ PERSISTENT STORAGE (Slow, Permanent)
+   ├─ data/memories/
+   │  ├─ planner_successful.json     (1000+ actions)
+   │  ├─ planner_failed.json         (500+ actions)
+   │  ├─ voltage_control_successful.json
+   │  ├─ thermal_control_successful.json
+   │  └─ ...
+   │
+   ├─ data/models/
+   │  ├─ voltage_predictor.pkl       (trained ML)
+   │  ├─ thermal_predictor.pkl       (trained ML)
+   │  └─ load_forecaster.pkl         (optional)
+   │
+   └─ config/
+      ├─ limits_config.yaml          (grid constraints)
+      └─ agent_config.yaml           (agent settings)
+```
+
+---
+
+## 🔄 Specialized Agent Decision Tree
+
+```
+START
+  ↓
+Detect Violations?
+  ├─ NO: Monitor, return
+  │
+  └─ YES: Analyze violation type
+       ├─ VOLTAGE VIOLATIONS
+       │  └─→ Voltage Control Agent
+       │      ├─ "Adjust capacitors?"
+       │      ├─ "Increase local generation?"
+       │      ├─ "Reduce load at bus?"
+       │      └─ Select best via LLM
+       │
+       ├─ THERMAL VIOLATIONS
+       │  └─→ Thermal Control Agent
+       │      ├─ "Reduce generation (source)?"
+       │      ├─ "Shed load (demand)?"
+       │      ├─ "Switch transmission path?"
+       │      ├─ "Open congested line?"
+       │      └─ Select best via LLM
+       │
+       └─ BOTH/COMPLEX
+          └─→ General Planner Agent
+             ├─ Consult voltage agent
+             ├─ Consult thermal agent
+             ├─ Coordinate recommendations
+             └─ Resolve conflicts
+
+       ↓
+   Validate Actions
+   ├─ Safety check
+   ├─ Constraint check
+   ├─ Conflict detection
+   └─ Feasibility verify
+       
+       ├─ FAILED: Reject, try next option
+       │
+       └─ PASSED: Execute
+           ↓
+       Run Power Flow Again
+       ↓
+       Improved?
+       ├─ YES: Record success, continue
+       └─ NO: Record failure, try next option
+```
+
+---
+
+## 📈 Learning Cycle
+
+```
+┌──────────────────────────────────────────┐
+│         AGENT LEARNING PROCESS           │
+└──────────────────────────────────────────┘
+
+Every Control Action:
+  
+  BEFORE EXECUTION
+  ├─ Capture context
+  │  └─ Violations, loads, generation, etc.
+  ├─ Retrieve similar past actions
+  │  └─ Find situations with >70% similarity
+  └─ Prioritize successful outcomes
+     └─ Favor actions that worked before
+
+  DURING EXECUTION
+  ├─ Apply action to network
+  ├─ Re-run power flow
+  └─ Measure new violations
+
+  AFTER EXECUTION
+  ├─ Calculate improvement
+  │  └─ violations_before - violations_after
+  ├─ Success or Failure?
+  │  ├─ SUCCESS: Record in successful_actions.json
+  │  │  └─ "This action worked in similar context"
+  │  └─ FAILURE: Record in failed_actions.json
+  │     └─ "Avoid this action next time"
+  └─ Update agent statistics
+     └─ Success rate: X%
+
+
+AFTER MANY CYCLES (Learning)
+┌────────────────────────────────────────┐
+│  Agent Success Rate: 0% → 50% → 85%    │
+│  Time per decision: 200ms → 50ms       │
+│  Wrong decisions: 100% → 50% → 10%     │
+│  Quality of plans: Poor → Fair → Good  │
+└────────────────────────────────────────┘
+```
+
+---
+
+## 🛡️ Safety Validation Pipeline
+
+```
+┌──────────────────────────────────────────────────────────┐
+│       SAFETY CONSTRAINT VALIDATION FRAMEWORK             │
+└──────────────────────────────────────────────────────────┘
+
+Action Proposed by Agent
+         ↓
+┌─────────────────────────────────┐
+│ 1. SYNTACTIC CHECK              │
+│    ├─ Action type valid?        │
+│    ├─ Target element exists?    │
+│    └─ Value in valid range?     │
+└──────────┬──────────────────────┘
+           ↓ PASS
+┌─────────────────────────────────┐
+│ 2. PHYSICAL LIMIT CHECK         │
+│    ├─ Voltage: 0.95-1.05 pu?    │
+│    ├─ Line: <100% loading?      │
+│    ├─ Gen: min-max output?      │
+│    ├─ Load: >0, <available?     │
+│    └─ Ramp rate ok?             │
+└──────────┬──────────────────────┘
+           ↓ PASS
+┌─────────────────────────────────┐
+│ 3. NETWORK INTEGRITY CHECK      │
+│    ├─ Can't isolate islands?    │
+│    ├─ Can't disconnect critical │
+│    │  generation?               │
+│    └─ Must maintain connectivity│
+└──────────┬──────────────────────┘
+           ↓ PASS
+┌─────────────────────────────────┐
+│ 4. CONFLICT DETECTION           │
+│    ├─ Multiple actions on same  │
+│    │  element?                  │
+│    ├─ Contradictory goals?      │
+│    └─ Sequence order matters?   │
+└──────────┬──────────────────────┘
+           ↓ PASS
+┌─────────────────────────────────┐
+│ ✅ ACTION APPROVED              │
+│    └─ Can execute safely        │
+└─────────────────────────────────┘
+
+Any FAIL → Reject action, try next one
+```
+
+---
+
+## 🎯 Module Responsibility Matrix
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    WHO DOES WHAT                               │
+└────────────────────────────────────────────────────────────────┘
+
+POWER FLOW SOLVER
+  Responsibility: Grid physics simulation
+  Input: Network model
+  Output: Voltages, currents, losses
+  Called: Every cycle
+
+VIOLATION DETECTOR
+  Responsibility: Identify problems
+  Input: Power flow results
+  Output: Violation lists
+  Called: Every cycle
+
+VIOLATION PREDICTOR
+  Responsibility: Forecast future problems
+  Input: Historical observations
+  Output: Predictions + confidence
+  Called: Every cycle (every 5 cycles trains)
+
+ALARM PRIORITIZER
+  Responsibility: Smart notifications
+  Input: Violations + predictions
+  Output: Ranked alarms + actions
+  Called: Every cycle
+
+VOLTAGE CONTROL AGENT
+  Responsibility: Voltage stability
+  Input: Violations, network state
+  Output: Voltage control actions
+  Called: When voltage violations exist
+
+THERMAL CONTROL AGENT
+  Responsibility: Line protection
+  Input: Violations, network state
+  Output: Thermal control actions
+  Called: When thermal violations exist
+
+GENERAL PLANNER AGENT
+  Responsibility: Overall coordination
+  Input: All violations, predictions
+  Output: Master control plan
+  Called: When multiple violation types
+
+SAFETY VALIDATOR
+  Responsibility: Prevent unsafe actions
+  Input: Proposed actions, network
+  Output: Valid actions only
+  Called: Before every execution
+
+EXECUTOR
+  Responsibility: Apply actions
+  Input: Validated actions, network
+  Output: Updated network state
+  Called: After validation passes
+
+MEMORY MODULE
+  Responsibility: Learning & statistics
+  Input: Actions + outcomes
+  Output: Improved future decisions
+  Called: After execution
+```
+
+---
+
+## ⚡ Performance Characteristics
+
+```
+┌─────────────────────────────────────────┐
+│          EXECUTION TIME BUDGET          │
+└─────────────────────────────────────────┘
+
+Total Cycle Budget: 1000ms (can run 60x/hour)
+
+Breakdown:
+  Power Flow:        100ms ■████░░░░░░░░░░░░░░░░░░░
+  Violation Detect:   50ms ■██░░░░░░░░░░░░░░░░░░░░░
+  Prediction:        200ms ■████████░░░░░░░░░░░░░░░
+  Alarms:            100ms ■████░░░░░░░░░░░░░░░░░░
+  Multi-Agent Plan:  200ms ■████████░░░░░░░░░░░░░░
+  Safety Valid:       50ms ■██░░░░░░░░░░░░░░░░░░░░░
+  Execution:         100ms ■████░░░░░░░░░░░░░░░░░░
+  Learning:           50ms ■██░░░░░░░░░░░░░░░░░░░░░
+  Overhead:          150ms ■██████░░░░░░░░░░░░░░░░
+                    ─────────
+  Total:            1000ms ■████████████████████████
+
+Scalability:
+  Small grid (50 buses):   10-50ms per cycle
+  Medium grid (500 buses): 100-300ms per cycle
+  Large grid (5000 buses): 500-1000ms per cycle
+```
+
+---
+
+## 📦 Module Dependencies
+
+```
+violation_predictor.py
+  └─ scikit-learn, numpy, pandas, joblib
+
+alarm_prioritizer.py
+  └─ datetime, enum, json
+
+safety_constraint_validator.py
+  └─ pandapower, networkx, yaml, pandas
+
+digital_twin.py
+  └─ pandapower, numpy
+
+voltage_control_agent.py
+  └─ base_agent, ollama, json
+
+thermal_control_agent.py
+  └─ base_agent, ollama, json
+
+base_agent.py
+  └─ json, pathlib, datetime
+
+app_enhanced.py
+  └─ streamlit, pandas, plotly, all above modules
+
+orchestrator.py (enhanced)
+  └─ power_flow_solver, all agent modules, safety_validator
+```
+
+---
+
+## 🔌 Integration Points
+
+```
+With Your Existing Code:
+
+orchestrator.py
+  ├─ Adds predictor initialization
+  ├─ Adds safety validator
+  ├─ Adds specialized agents
+  ├─ Modifies run() to use new features
+  └─ Compatible with existing planner/executor
+
+power_flow_solver.py
+  └─ No changes needed (used as-is)
+
+action_executor.py
+  └─ No changes needed (used as-is)
+
+app.py
+  └─ Optional: Replace with app_enhanced.py
+     or import new modules alongside
+
+NEW FILES (don't conflict):
+  ├─ violation_predictor.py
+  ├─ alarm_prioritizer.py
+  ├─ safety_constraint_validator.py
+  ├─ digital_twin.py
+  ├─ base_agent.py
+  ├─ voltage_control_agent.py
+  └─ thermal_control_agent.py
+```
+
+---
+
+This architecture ensures:
+✅ **Modularity**: Each component has single responsibility
+✅ **Scalability**: Can handle grids of any size
+✅ **Reliability**: Multiple safeguards at each stage
+✅ **Extensibility**: Easy to add new agents/features
+✅ **Performance**: Meets real-time requirements
+✅ **Transparency**: Clear data flow and decision logic

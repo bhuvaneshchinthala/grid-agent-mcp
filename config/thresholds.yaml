@@ -1,0 +1,320 @@
+# ============================================================================
+# THRESHOLDS CONFIGURATION - Alarm & Violation Thresholds
+# ============================================================================
+
+# Severity Levels
+severity_levels:
+  CRITICAL:
+    level: 1
+    description: "Immediate action required, system at risk"
+    color: "red"
+    response_time: "immediate"  # < 1 second
+    escalation_enabled: true
+    
+  HIGH:
+    level: 2
+    description: "Action needed soon, significant risk"
+    color: "orange"
+    response_time: "urgent"  # < 10 seconds
+    escalation_enabled: true
+    
+  MEDIUM:
+    level: 3
+    description: "Action recommended, manageable risk"
+    color: "yellow"
+    response_time: "normal"  # < 60 seconds
+    escalation_enabled: false
+    
+  LOW:
+    level: 4
+    description: "Monitoring, informational"
+    color: "green"
+    response_time: "none"
+    escalation_enabled: false
+
+# Voltage Violation Thresholds
+voltage_thresholds:
+  # Critical low voltage
+  critical_low:
+    threshold: 0.85
+    severity: "CRITICAL"
+    duration: 0  # immediate
+    action: "activate emergency voltage support"
+    
+  # High low voltage
+  high_low:
+    threshold: 0.90
+    severity: "HIGH"
+    duration: 10  # seconds
+    action: "increase reactive power output"
+    
+  # Medium low voltage
+  medium_low:
+    threshold: 0.95
+    severity: "MEDIUM"
+    duration: 30
+    action: "monitor and increase voltage setpoint"
+    
+  # Critical high voltage
+  critical_high:
+    threshold: 1.15
+    severity: "CRITICAL"
+    duration: 0
+    action: "decrease reactive power immediately"
+    
+  # High high voltage
+  high_high:
+    threshold: 1.10
+    severity: "HIGH"
+    duration: 10
+    action: "decrease reactive power output"
+    
+  # Medium high voltage
+  medium_high:
+    threshold: 1.05
+    severity: "MEDIUM"
+    duration: 60
+    action: "monitor and adjust voltage setpoint"
+
+# Thermal Loading Thresholds
+thermal_thresholds:
+  # Critical line overload
+  critical_line:
+    threshold: 100.0  # % of rating
+    severity: "CRITICAL"
+    duration: 0  # no tolerance
+    action: "immediately redispatch power or shed load"
+    
+  # High line loading
+  high_line:
+    threshold: 90.0
+    severity: "HIGH"
+    duration: 30
+    action: "monitor and prepare load shedding"
+    
+  # Medium line loading
+  medium_line:
+    threshold: 85.0
+    severity: "MEDIUM"
+    duration: 120
+    action: "monitor trend"
+    
+  # Critical transformer overload
+  critical_transformer:
+    threshold: 100.0
+    severity: "CRITICAL"
+    duration: 0
+    action: "reduce loading immediately"
+    
+  # High transformer loading
+  high_transformer:
+    threshold: 90.0
+    severity: "HIGH"
+    duration: 60
+    action: "reduce loading as soon as feasible"
+    
+  # Transformer temperature
+  critical_temp:
+    threshold: 110.0  # Celsius
+    severity: "CRITICAL"
+    duration: 0
+    action: "force cool and reduce loading"
+    
+  high_temp:
+    threshold: 95.0
+    severity: "HIGH"
+    duration: 300
+    action: "increase cooling, reduce loading"
+
+# Frequency Deviation Thresholds
+frequency_thresholds:
+  # Critical high frequency
+  critical_high:
+    threshold: 60.5
+    severity: "CRITICAL"
+    duration: 0
+    action: "emergency generator tripping"
+    
+  # High frequency
+  high_freq:
+    threshold: 60.3
+    severity: "HIGH"
+    duration: 5
+    action: "increase load or reduce generation"
+    
+  # Low frequency
+  low_freq:
+    threshold: 59.7
+    severity: "HIGH"
+    duration: 5
+    action: "decrease load or increase generation"
+    
+  # Critical low frequency
+  critical_low:
+    threshold: 59.5
+    severity: "CRITICAL"
+    duration: 0
+    action: "emergency load shedding"
+    
+  # Rate of change of frequency (RoCoF)
+  rocof_limit:
+    threshold: 2.0  # Hz/second
+    severity: "HIGH"
+    duration: 0
+    action: "fast frequency support needed"
+
+# Reactive Power Violation Thresholds
+reactive_power_thresholds:
+  # Generator Q limit violation
+  gen_q_max:
+    threshold: "Q_max"
+    severity: "HIGH"
+    duration: 10
+    action: "switch to PQ mode or increase voltage setpoint"
+    
+  gen_q_min:
+    threshold: "Q_min"
+    severity: "HIGH"
+    duration: 10
+    action: "reduce voltage setpoint or switch to PV mode"
+    
+  # System reactive reserve
+  low_q_reserve:
+    threshold: 20.0  # MVAr minimum available
+    severity: "MEDIUM"
+    duration: 60
+    action: "increase voltage setpoints to boost reactive generation"
+
+# Stability Margins Thresholds
+stability_thresholds:
+  # Small signal stability
+  damping_ratio:
+    threshold: 0.05  # minimum damping ratio
+    severity: "HIGH"
+    duration: 0
+    action: "activate damping control"
+    
+  # Transient stability
+  critical_clearing_time:
+    threshold: 100  # milliseconds
+    severity: "CRITICAL"
+    duration: 0
+    action: "prepare for contingency response"
+    
+  # Voltage stability margin
+  L_index:
+    threshold: 0.8  # 0=stable, 1=voltage collapse
+    severity: "HIGH"
+    duration: 30
+    action: "reduce loading or increase reactive support"
+
+# Alarm Suppression & Hysteresis
+hysteresis:
+  enabled: true
+  
+  # Hysteresis margins (threshold +/- margin)
+  voltage:
+    high_margin: 0.02  # pu
+    low_margin: 0.02
+    
+  frequency:
+    high_margin: 0.1  # Hz
+    low_margin: 0.1
+    
+  thermal:
+    margin: 2.0  # % of rating
+
+# Alarm Grouping & Correlation
+alarm_correlation:
+  # Group related alarms
+  group_window: 5  # seconds to group alarms
+  
+  grouping_rules:
+    # If multiple low voltages in same area, group them
+    voltage_cluster:
+      threshold: 3  # buses
+      window: 10  # seconds
+      
+    # If multiple thermal overloads, group them
+    thermal_cascade:
+      threshold: 2  # lines
+      window: 10
+      
+    # Frequency and reactive power often related
+    frequency_reactive_correlation:
+      enabled: true
+
+# Alert Escalation Rules
+escalation:
+  # If alert not acknowledged/resolved
+  escalation_timers:
+    CRITICAL: 5  # seconds before escalation
+    HIGH: 30
+    MEDIUM: 300
+    
+  escalation_targets:
+    CRITICAL: ["operator", "supervisor", "manager"]
+    HIGH: ["operator", "supervisor"]
+    MEDIUM: ["operator"]
+    
+  # Repeated alerts
+  repeat_alert_threshold: 3  # if fires 3+ times in window
+  repeat_alert_window: 300  # seconds
+  repeat_alert_action: "escalate severity"
+
+# Predictive Thresholds (for violation_predictor)
+predictive_thresholds:
+  # Time horizon for prediction
+  prediction_horizon: 300  # seconds (5 minutes)
+  
+  # Predicted violation severity
+  predicted_critical_prob:
+    threshold: 0.8  # 80% probability
+    severity: "HIGH"
+    action: "initiate preventive actions"
+    
+  predicted_high_prob:
+    threshold: 0.6  # 60% probability
+    severity: "MEDIUM"
+    action: "prepare contingency plans"
+  
+  # Load forecast error
+  load_forecast_error:
+    acceptable: 5.0  # % MAPE
+    warning: 10.0
+    severe: 15.0
+
+# Action Effectiveness Thresholds
+control_effectiveness:
+  # How much an action must improve the situation
+  minimum_improvement: 10.0  # % for it to be worthwhile
+  
+  # How long to wait after action before evaluating
+  evaluation_delay: 30  # seconds
+  
+  # If action makes things worse
+  action_failure_threshold: -5.0  # % worse considered failure
+
+# System State Classification
+system_states:
+  normal:
+    description: "All parameters within normal range"
+    voltage_range: [0.95, 1.05]
+    frequency_range: [59.95, 60.05]
+    thermal_limit: 70.0  # %
+    
+  alert:
+    description: "One or more parameters approaching limits"
+    voltage_range: [0.90, 1.10]
+    frequency_range: [59.7, 60.3]
+    thermal_limit: 85.0
+    
+  emergency:
+    description: "One or more parameters exceeding limits"
+    voltage_range: [0.85, 1.15]
+    frequency_range: [59.5, 60.5]
+    thermal_limit: 100.0
+    
+  blackout:
+    description: "System collapse or large-scale outage"
+    action: "emergency restoration procedure"

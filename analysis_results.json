@@ -1,0 +1,101 @@
+{
+  "execution_time": "2026-01-29T14:58:27.696017",
+  "analyses": [
+    {
+      "timestamp": "2026-01-29T14:58:28.974378",
+      "network": "IEEE-30 Normal Grid",
+      "network_stats": {
+        "buses": 30,
+        "lines": 41,
+        "generators": 5,
+        "loads": 20
+      },
+      "health": {
+        "network_health_percent": 98.59,
+        "severity_score": 5
+      },
+      "violations": {
+        "voltage_violations": 0,
+        "thermal_violations": 1,
+        "total": 1
+      },
+      "control_actions": {
+        "proposed": 0,
+        "actions": []
+      },
+      "alarms": {
+        "critical": 1,
+        "high": 0
+      },
+      "predictions": {
+        "confidence_percent": 87.95,
+        "voltage_violations_predicted": 0,
+        "thermal_violations_predicted": 0
+      }
+    },
+    {
+      "timestamp": "2026-01-29T14:58:29.157574",
+      "network": "IEEE-30 Stressed Grid",
+      "network_stats": {
+        "buses": 30,
+        "lines": 41,
+        "generators": 5,
+        "loads": 20
+      },
+      "health": {
+        "network_health_percent": 98.59,
+        "severity_score": 5
+      },
+      "violations": {
+        "voltage_violations": 0,
+        "thermal_violations": 1,
+        "total": 1
+      },
+      "control_actions": {
+        "proposed": 0,
+        "actions": []
+      },
+      "alarms": {
+        "critical": 1,
+        "high": 0
+      },
+      "predictions": {
+        "confidence_percent": 70.08,
+        "voltage_violations_predicted": 0,
+        "thermal_violations_predicted": 0
+      }
+    },
+    {
+      "timestamp": "2026-01-29T14:58:29.449922",
+      "network": "IEEE-33 Distribution Network",
+      "network_stats": {
+        "buses": 33,
+        "lines": 37,
+        "generators": 0,
+        "loads": 32
+      },
+      "health": {
+        "network_health_percent": 70.0,
+        "severity_score": 105
+      },
+      "violations": {
+        "voltage_violations": 21,
+        "thermal_violations": 0,
+        "total": 21
+      },
+      "control_actions": {
+        "proposed": 0,
+        "actions": []
+      },
+      "alarms": {
+        "critical": 0,
+        "high": 21
+      },
+      "predictions": {
+        "confidence_percent": 73.95,
+        "voltage_violations_predicted": 0,
+        "thermal_violations_predicted": 0
+      }
+    }
+  ]
+}

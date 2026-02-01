@@ -1,0 +1,228 @@
+# ============================================================================
+# LIMITS CONFIGURATION - Voltage, Thermal, Generator Limits
+# ============================================================================
+
+# Voltage Limits (per unit)
+voltage_limits:
+  # Hard limits (cannot exceed)
+  hard_maximum: 1.15
+  hard_minimum: 0.85
+  
+  # Warning limits (alerts but allows operation)
+  warning_maximum: 1.10
+  warning_minimum: 0.90
+  
+  # Optimal limits (preferred operating range)
+  optimal_maximum: 1.05
+  optimal_minimum: 0.95
+  
+  # Bus-specific overrides (if needed)
+  bus_specific:
+    # Format: bus_id: {min: value, max: value}
+    # Example:
+    # 1: {min: 0.98, max: 1.02}  # Slack bus stricter control
+
+# Thermal Limits (Line Loading)
+thermal_limits:
+  # Line rating as percentage of MVA capacity
+  line_loading:
+    hard_limit: 100.0  # % of rating
+    warning_limit: 85.0
+    optimal_limit: 70.0
+  
+  # Transformer loading
+  transformer_loading:
+    hard_limit: 100.0  # % of rating
+    warning_limit: 90.0
+    optimal_limit: 75.0
+  
+  # Temperature thresholds (Celsius)
+  transformer_temp:
+    hard_limit: 110.0
+    warning_limit: 95.0
+    optimal_limit: 80.0
+  
+  # Time allowed at violation (seconds)
+  violation_duration:
+    hard_limit: 30  # Cannot exceed hard limit
+    warning_limit: 300  # Warning can persist 5 minutes
+
+# Frequency Limits (Hz)
+frequency_limits:
+  hard_maximum: 60.5
+  hard_minimum: 59.5
+  warning_maximum: 60.3
+  warning_minimum: 59.7
+  optimal_maximum: 60.05
+  optimal_minimum: 59.95
+  
+  # Rate of change of frequency (Hz/s)
+  rocof_limit: 2.0
+
+# Generator Limits
+generator_limits:
+  # IEEE 30-Bus System Generators
+  gen_1:  # Slack bus generator
+    P_max: 999.0
+    P_min: -999.0
+    Q_max: 10.0
+    Q_min: 0.0
+    V_setpoint: 1.060
+    P_ramp_rate: 100.0  # MW/minute
+    Q_ramp_rate: 50.0   # MVAr/minute
+    
+  gen_2:  # Bus 2
+    P_max: 40.0
+    P_min: 0.0
+    Q_max: 50.0
+    Q_min: -40.0
+    V_setpoint: 1.043
+    P_ramp_rate: 20.0
+    Q_ramp_rate: 25.0
+    
+  gen_5:  # Bus 5
+    P_max: 0.0  # Initially off
+    P_min: 0.0
+    Q_max: 40.0
+    Q_min: -40.0
+    V_setpoint: 1.010
+    P_ramp_rate: 30.0
+    Q_ramp_rate: 30.0
+    
+  gen_8:  # Bus 8
+    P_max: 0.0  # Initially off
+    P_min: 0.0
+    Q_max: 40.0
+    Q_min: -10.0
+    V_setpoint: 1.010
+    P_ramp_rate: 30.0
+    Q_ramp_rate: 30.0
+    
+  gen_11:  # Bus 11
+    P_max: 0.0  # Initially off
+    P_min: 0.0
+    Q_max: 24.0
+    Q_min: -6.0
+    V_setpoint: 1.082
+    P_ramp_rate: 20.0
+    Q_ramp_rate: 20.0
+    
+  gen_13:  # Bus 13
+    P_max: 0.0  # Initially off
+    P_min: 0.0
+    Q_max: 24.0
+    Q_min: -6.0
+    V_setpoint: 1.071
+    P_ramp_rate: 20.0
+    Q_ramp_rate: 20.0
+
+# Reactive Power Compensation Limits
+reactive_compensation:
+  # Capacitor banks
+  capacitor_banks:
+    typical_size: 10.0  # MVAr
+    max_number: 20  # per bus
+    switching_time: 1.0  # seconds
+    
+  # Reactor banks
+  reactor_banks:
+    typical_size: 10.0  # MVAr
+    max_number: 10
+    switching_time: 1.0
+
+# Control Action Limits
+control_limits:
+  # Voltage setpoint adjustment
+  voltage_setpoint:
+    max_change_per_action: 0.05  # pu per action
+    max_absolute_limit: [0.95, 1.10]  # [min, max]
+    settling_time: 10  # seconds
+  
+  # Active power dispatch
+  active_power:
+    max_change_per_action: 20.0  # MW per action
+    min_dispatch_change: 1.0  # minimum meaningful change
+  
+  # Reactive power dispatch
+  reactive_power:
+    max_change_per_action: 15.0  # MVAr per action
+    min_dispatch_change: 0.5
+  
+  # Transformer tap position
+  tap_position:
+    max_steps_per_action: 1  # steps per action
+    step_size: 0.00625  # per unit per step
+    settle_time: 5  # seconds between tap changes
+
+# Load Shedding Limits
+load_shedding:
+  enabled: true
+  max_percentage: 20.0  # maximum % of load allowed to shed
+  priority_zones:
+    # Zone priorities (1=highest, lower=shed first)
+    industrial: 1
+    commercial: 2
+    residential: 3
+  
+  shed_block_size: 5.0  # MW blocks for shedding
+  restore_delay: 300  # seconds to restore after event
+
+# Contingency Constraints
+contingency:
+  # Post-contingency acceptable violations
+  post_contingency_voltage: [0.88, 1.12]  # Relaxed from normal
+  post_contingency_thermal: 110.0  # % of rating
+  
+  # Time to clear contingencies
+  clear_time: 5.0  # seconds (typical breaker clearing)
+  
+  # N-1 contingency criteria
+  n_minus_1_minimum_margin: 5.0  # % loading margin
+
+# Reserve Requirements
+reserves:
+  spinning_reserve: 15.0  # % of load
+  reg_up: 5.0  # % for frequency regulation up
+  reg_down: 5.0  # % for frequency regulation down
+  ramp_capability: 10.0  # MW/min sustained
+
+# System Protection Limits
+protection:
+  # Under-frequency load shedding (UFLS)
+  ufls_stages:
+    stage_1:
+      frequency: 59.7
+      delay: 0.5  # seconds
+      load_to_shed: 10.0  # % of total load
+    
+    stage_2:
+      frequency: 59.4
+      delay: 0.5
+      load_to_shed: 15.0
+    
+    stage_3:
+      frequency: 59.0
+      delay: 0.5
+      load_to_shed: 20.0
+  
+  # Over-frequency load shedding (OFLS)
+  ofls_stages:
+    stage_1:
+      frequency: 60.3
+      delay: 1.0
+      generation_to_trip: 10.0  # MW
+  
+  # Over-voltage load shedding
+  ovls:
+    voltage_threshold: 1.15
+    shunt_reaction: 50.0  # reactive power switch-off
+
+# Ramping and Ramp Rate Limits
+ramping:
+  # Typical thermal plant ramp rates
+  coal_plant: 5.0  # MW/minute
+  gas_turbine: 20.0
+  wind_turbine: 100.0  # MW/minute (fast variation)
+  
+  # System-wide ramp requirements
+  max_system_ramp: 200.0  # MW/minute for stable operation
