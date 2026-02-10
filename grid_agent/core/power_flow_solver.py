@@ -3,6 +3,7 @@ from typing import List, Dict, Tuple, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
 import warnings
+import pandas as pd
 
 # Import pandapower for PowerFlowSolver wrapper
 try:
@@ -84,12 +85,12 @@ class PowerFlowSolver:
         # Detect voltage violations
         for bus_idx in net.res_bus.index:
             vm = net.res_bus.at[bus_idx, 'vm_pu']
-            if vm < v_min or vm > v_max:
+            if pd.isna(vm) or vm < v_min or vm > v_max:
                 violations["voltage"].append({
                     "bus": int(bus_idx),
-                    "voltage_pu": float(vm),
-                    "violation_type": "undervoltage" if vm < v_min else "overvoltage",
-                    "deviation": float(abs(vm - 1.0))
+                    "voltage_pu": float(vm) if not pd.isna(vm) else 0.0,
+                    "violation_type": "disconnected" if pd.isna(vm) else ("undervoltage" if vm < v_min else "overvoltage"),
+                    "deviation": float(abs(vm - 1.0)) if not pd.isna(vm) else 1.0
                 })
         
         # Detect thermal violations

@@ -21,7 +21,11 @@ import copy
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import networkx as nx
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Import grid components
 from grid_agent.core.power_flow_solver import PowerFlowSolver
@@ -66,10 +70,25 @@ if "solver" not in st.session_state:
     st.session_state.violations = None
     st.session_state.mode = "auto"
     st.session_state.start_time = None
-    st.session_state.network_loaded = False
     st.session_state.actions_in_plan = 0
     st.session_state.actions_executed = 0
-    st.session_state.theme = "light"  # Default theme
+    st.session_state.theme = "dark"  # Default theme
+    
+    # Configuration defaults
+    if "v_min" not in st.session_state:
+        st.session_state.v_min = 0.95
+    if "v_max" not in st.session_state:
+        st.session_state.v_max = 1.05
+    if "thermal_limit" not in st.session_state:
+        st.session_state.thermal_limit = 100
+    if "show_impact" not in st.session_state:
+        st.session_state.show_impact = False
+    if "current_plan" not in st.session_state:
+        st.session_state.current_plan = []
+    if "plan_generated" not in st.session_state:
+        st.session_state.plan_generated = False
+
+
 
 # ============================================================================
 # THEME STYLES
@@ -285,13 +304,31 @@ def load_network(network_name, drop_line=None):
         "IEEE 4-Bus": pn.case4gs,
     }
     
-    net = networks.get(network_name, pn.case33bw)()
+    print(f"DEBUG: Attempting to load network {network_name}")
+    try:
+        net = networks.get(network_name, pn.case33bw)()
+        print(f"DEBUG: Network loaded successfully: {net}")
+        print(f"DEBUG: Bus count: {len(net.bus)}")
+        print(f"DEBUG: Gen count: {len(net.gen)}")
+    except Exception as e:
+        print(f"DEBUG: Failed to load network: {e}")
+        return None
     
     if drop_line is not None and drop_line < len(net.line):
         net.line.at[drop_line, "in_service"] = False
     
     return net
 
+
+# Auto-load network on startup (placed here to ensure load_network is defined)
+if st.session_state.net is None:
+    print("DEBUG: Auto-loading IEEE 33-Bus on startup")
+    st.session_state.net = load_network("IEEE 33-Bus")
+    st.session_state.net_original = copy.deepcopy(st.session_state.net)
+    st.session_state.violations = st.session_state.solver.detect_violations(st.session_state.net)
+    st.session_state.network_loaded = True
+    st.session_state.start_time = datetime.now()
+    log_activity("Auto-loaded IEEE 33-Bus", "System")
 
 def create_tree_topology(net, violations, theme="light"):
     """Create tree-style network topology"""
@@ -375,6 +412,139 @@ def create_tree_topology(net, violations, theme="light"):
     ax.set_title("Network Topology", fontsize=11, fontweight='bold', loc='left', color=text_color)
     ax.axis('off')
     plt.tight_layout()
+    
+    return fig
+
+
+def create_voltage_profile_chart(net, violations):
+    """Create interactive voltage profile chart using Plotly"""
+    # Extract voltage data
+    buses = []
+    voltages = []
+    status = []
+    colors = []
+    
+    v_min = st.session_state.v_min
+    v_max = st.session_state.v_max
+    
+    for idx in net.res_bus.index:
+        bus_id = idx
+        vm = net.res_bus.at[idx, 'vm_pu']
+        
+        buses.append(f"Bus {bus_id}")
+        
+        if pd.isna(vm):
+            voltages.append(0)
+            status.append("Disconnected")
+            colors.append("#ef4444") # Red
+        else:
+            voltages.append(vm)
+            if vm < v_min:
+                status.append(f"Undervoltage ({vm:.4f} < {v_min})")
+                colors.append("#eab308") # Yellow/Orange
+            elif vm > v_max:
+                status.append(f"Overvoltage ({vm:.4f} > {v_max})")
+                colors.append("#eab308")
+            else:
+                status.append("Healthy")
+                colors.append("#22c55e") # Green
+    
+    df = pd.DataFrame({
+        "Bus": buses,
+        "Voltage (p.u.)": voltages,
+        "Status": status,
+        "Color": colors
+    })
+    
+    fig = go.Figure()
+    
+    # Add bars
+    fig.add_trace(go.Bar(
+        x=df["Bus"],
+        y=df["Voltage (p.u.)"],
+        marker_color=df["Color"],
+        text=df["Voltage (p.u.)"].apply(lambda x: f"{x:.3f}"),
+        textposition='auto',
+        hovertemplate="<b>%{x}</b><br>Voltage: %{y:.4f} p.u.<br>Status: %{customdata}<extra></extra>",
+        customdata=df["Status"]
+    ))
+    
+    # Add threshold lines
+    fig.add_hline(y=v_min, line_dash="dash", line_color="white", annotation_text="Min Limit")
+    fig.add_hline(y=v_max, line_dash="dash", line_color="white", annotation_text="Max Limit")
+    fig.add_hline(y=1.0, line_color="gray", opacity=0.5)
+    
+    fig.update_layout(
+        title="Bus Voltage Profile",
+        xaxis_title="Bus ID",
+        yaxis_title="Voltage (p.u.)",
+        yaxis_range=[0.8, 1.2],
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color="#9ca3af"),
+        height=400,
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+    
+    return fig
+
+
+def create_thermal_loading_chart(net, violations):
+    """Create interactive thermal loading chart using Plotly"""
+    if net.res_line.empty:
+        return go.Figure()
+        
+    lines = []
+    loading = []
+    status = []
+    colors = []
+    
+    limit = st.session_state.thermal_limit
+    
+    for idx in net.res_line.index:
+        l_load = net.res_line.at[idx, 'loading_percent']
+        lines.append(f"Line {idx}")
+        loading.append(l_load)
+        
+        if l_load > limit:
+            status.append(f"Overloaded ({l_load:.1f}% > {limit}%)")
+            colors.append("#ef4444") # Red
+        elif l_load > 80:
+            status.append("High Loading")
+            colors.append("#eab308") # Orange
+        else:
+            status.append("Normal")
+            colors.append("#22c55e") # Green
+            
+    df = pd.DataFrame({
+        "Line": lines,
+        "Loading (%)": loading,
+        "Status": status,
+        "Color": colors
+    })
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        x=df["Line"],
+        y=df["Loading (%)"],
+        marker_color=df["Color"],
+        hovertemplate="<b>%{x}</b><br>Loading: %{y:.1f}%<br>Status: %{customdata}<extra></extra>",
+        customdata=df["Status"]
+    ))
+    
+    fig.add_hline(y=limit, line_dash="dash", line_color="red", annotation_text="Thermal Limit")
+    
+    fig.update_layout(
+        title="Line Thermal Loading",
+        xaxis_title="Line ID",
+        yaxis_title="Loading (%)",
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color="#9ca3af"),
+        height=400,
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
     
     return fig
 
@@ -585,65 +755,74 @@ def _generate_fallback_actions(violations):
 # SIDEBAR
 # ============================================================================
 with st.sidebar:
-    st.markdown("### ⚙️ Configuration")
+    show_settings = st.toggle("⚙️ Show Sidebar Controls", value=True)
     
-    # Theme toggle
-    st.markdown("##### 🎨 Theme")
-    theme_choice = st.radio(
-        "Select Theme",
-        ["☀️ Light Mode", "🌙 Dark Mode"],
-        index=0 if st.session_state.theme == "light" else 1,
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-    
-    new_theme = "light" if "Light" in theme_choice else "dark"
-    if new_theme != st.session_state.theme:
-        st.session_state.theme = new_theme
-        st.rerun()
-    
-    st.markdown("---")
-    
-    st.markdown("##### 🔌 Network Selection")
-    network_name = st.selectbox(
-        "Network",
-        ["IEEE 33-Bus", "IEEE 30-Bus", "IEEE 14-Bus", "IEEE 4-Bus"],
-        index=0,
-        label_visibility="collapsed"
-    )
-    
-    drop_line = st.selectbox(
-        "Drop Line (create outage)",
-        [None, 3, 5, 10, 12, 15],
-        index=0,
-        format_func=lambda x: "None" if x is None else f"Line {x}"
-    )
-    
-    st.markdown("---")
-    
-    st.markdown("##### ⚡ Voltage Thresholds")
-    col1, col2 = st.columns(2)
-    with col1:
-        v_min = st.number_input("Min (p.u.)", 0.90, 1.00, 0.95, 0.01)
-    with col2:
-        v_max = st.number_input("Max (p.u.)", 1.00, 1.10, 1.05, 0.01)
-    
-    if st.button("Update Thresholds"):
-        st.success("Updated")
-    
-    st.markdown("---")
-    
-    st.markdown("##### 📊 Session Info")
-    st.text(f"Start Time: {datetime.now().strftime('%H:%M:%S')}")
-    st.text(f"Network Loaded: {st.session_state.network_loaded}")
-    st.text(f"Network: {network_name}")
-    st.text(f"Mode: {st.session_state.mode}")
-    st.text(f"Actions in Plan: {st.session_state.actions_in_plan}")
-    st.text(f"Actions Executed: {st.session_state.actions_executed}")
-    st.text(f"Activities Logged: {len(st.session_state.activity_log)}")
-    
-    st.markdown("---")
-    st.checkbox("🐛 Debug Mode")
+    if show_settings:
+        st.markdown("### ⚙️ Configuration")
+        
+        # Theme toggle
+        st.markdown("##### 🎨 Theme")
+        theme_choice = st.radio(
+            "Select Theme",
+            ["☀️ Light Mode", "🌙 Dark Mode"],
+            index=0 if st.session_state.theme == "light" else 1,
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+        
+        new_theme = "light" if "Light" in theme_choice else "dark"
+        if new_theme != st.session_state.theme:
+            st.session_state.theme = new_theme
+            st.rerun()
+        
+        st.markdown("---")
+        
+        st.markdown("##### 🔌 Network Selection")
+        network_name = st.selectbox(
+            "Network",
+            ["IEEE 33-Bus", "IEEE 30-Bus", "IEEE 14-Bus", "IEEE 4-Bus"],
+            index=0
+        )
+        
+        drop_line = st.selectbox(
+            "Drop Line (create outage)",
+            [None, 3, 5, 10, 12, 15],
+            index=0,
+            format_func=lambda x: "None" if x is None else f"Line {x}"
+        )
+        
+        st.markdown("---")
+        
+        st.markdown("##### ⚡ Voltage Thresholds")
+        col1, col2 = st.columns(2)
+        with col1:
+            v_min = st.number_input("Min (p.u.)", 0.90, 1.00, 0.95, 0.01)
+        with col2:
+            v_max = st.number_input("Max (p.u.)", 1.00, 1.10, 1.05, 0.01)
+        
+        if st.button("Update Thresholds"):
+            st.success("Updated")
+        
+        st.markdown("---")
+        
+        st.markdown("##### 📊 Session Info")
+        st.text(f"Start Time: {datetime.now().strftime('%H:%M:%S')}")
+        st.text(f"Network Loaded: {st.session_state.network_loaded}")
+        st.text(f"Network: {network_name}")
+        st.text(f"Mode: {st.session_state.mode}")
+        st.text(f"Actions in Plan: {st.session_state.actions_in_plan}")
+        st.text(f"Actions Executed: {st.session_state.actions_executed}")
+        st.text(f"Activities Logged: {len(st.session_state.activity_log)}")
+        
+        st.markdown("---")
+        show_dashboard = st.checkbox("Show Dashboard", value=True)
+        st.checkbox("🐛 Debug Mode")
+    else:
+        # Defaults if hidden to prevent NameErrors
+        network_name = "IEEE 33-Bus"
+        drop_line = None
+        show_dashboard = True # Keep dashboard visible by default if sidebar hidden
+        v_min, v_max = 0.95, 1.05
 
 
 # ============================================================================
@@ -667,11 +846,18 @@ if st.button("🔄 Load Network & Analyze", use_container_width=True):
     st.session_state.start_time = datetime.now()
     log_activity(f"Loaded {network_name}", "System")
 
+print("DEBUG: Starting VoltAI Dashboard v2...")
+
 # Main content
-if st.session_state.network_loaded and st.session_state.net is not None:
+if show_dashboard and st.session_state.network_loaded and st.session_state.net is not None:
     net = st.session_state.net
     violations = st.session_state.violations
     summary = violations.get("summary", {})
+    
+    print(f"DEBUG: Displaying metrics. Net: {net}")
+    print(f"DEBUG: Res Gen Empty? {net.res_gen.empty}")
+    if not net.res_gen.empty:
+        print(f"DEBUG: Total Gen: {net.res_gen.p_mw.sum()}")
     
     # Network Health Overview
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
@@ -721,21 +907,118 @@ if st.session_state.network_loaded and st.session_state.net is not None:
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🔍 Network Visualization</div>', unsafe_allow_html=True)
     
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        plot_type = st.selectbox("Plot Type", ["Network Topology"], label_visibility="collapsed")
-    with col2:
-        color_scheme = st.selectbox("Color Scheme", ["Default", "Voltage"], label_visibility="collapsed")
-    with col3:
-        show_labels = st.checkbox("Show Labels", value=True)
-    with col4:
-        interactive = st.checkbox("Interactive Mode", value=False)
+    view_tab1, view_tab2, view_tab3 = st.tabs(["🗺️ Network Map", "📊 Voltage Profile", "🔥 Thermal Loading"])
     
-    fig = create_tree_topology(net, violations, st.session_state.theme)
-    st.pyplot(fig)
-    plt.close(fig)
+    with view_tab1:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            plot_type = st.selectbox("Plot Type", ["Network Topology"], label_visibility="collapsed")
+        with col2:
+            color_scheme = st.selectbox("Color Scheme", ["Default", "Voltage"], label_visibility="collapsed")
+        with col3:
+            show_labels = st.checkbox("Show Labels", value=True)
+        with col4:
+            interactive = st.checkbox("Interactive Mode", value=False)
+        
+        fig = create_tree_topology(net, violations, st.session_state.theme)
+        st.pyplot(fig)
+        plt.close(fig)
+        
+    with view_tab2:
+        st.plotly_chart(create_voltage_profile_chart(net, violations), use_container_width=True)
+        
+    with view_tab3:
+        st.plotly_chart(create_thermal_loading_chart(net, violations), use_container_width=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # Impact Analysis (Comparison)
+    if st.session_state.net_original is not None and st.session_state.get('show_impact', False):
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">⚖️ Impact Analysis (Before vs After)</div>', unsafe_allow_html=True)
+        
+        tab_visual, tab_metrics = st.tabs(["🖼️ Visual Comparison", "📊 Detailed Metrics"])
+        
+        with tab_visual:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Before (Original State)**")
+                # Use a cached/simple plot for original to save time
+                fig_orig = create_tree_topology(st.session_state.net_original, {}, st.session_state.theme)
+                st.pyplot(fig_orig)
+                plt.close(fig_orig)
+                
+            with col2:
+                st.markdown("**After (Current State)**")
+                fig_curr = create_tree_topology(net, violations, st.session_state.theme)
+                st.pyplot(fig_curr)
+                plt.close(fig_curr)
+        
+        with tab_metrics:
+            # Calculate metrics
+            def get_net_metrics(n):
+                return {
+                    "load_mw": n.res_load.p_mw.sum() if not n.res_load.empty else 0,
+                    "gen_mw": (n.res_gen.p_mw.sum() if not n.res_gen.empty else 0) + (n.res_ext_grid.p_mw.sum() if not n.res_ext_grid.empty else 0),
+                    "min_voltage": n.res_bus.vm_pu.min() if not n.res_bus.empty else 0,
+                    "max_loading": n.res_line.loading_percent.max() if not n.res_line.empty else 0,
+                    "losses": (n.res_gen.p_mw.sum() + n.res_ext_grid.p_mw.sum()) - n.res_load.p_mw.sum()
+                }
+            
+            m_orig = get_net_metrics(st.session_state.net_original)
+            m_curr = get_net_metrics(net)
+            
+            # Create comparison table
+            comp_data = {
+                "Metric": ["Min Voltage (p.u.)", "Max Line Loading (%)", "Total Losses (MW)", "Total Generation (MW)"],
+                "Before": [f"{m_orig['min_voltage']:.4f}", f"{m_orig['max_loading']:.1f}%", f"{m_orig['losses']:.2f}", f"{m_orig['gen_mw']:.2f}"],
+                "After": [f"{m_curr['min_voltage']:.4f}", f"{m_curr['max_loading']:.1f}%", f"{m_curr['losses']:.2f}", f"{m_curr['gen_mw']:.2f}"],
+                "Change": [
+                    f"{m_curr['min_voltage'] - m_orig['min_voltage']:+.4f}",
+                    f"{m_curr['max_loading'] - m_orig['max_loading']:+.1f}%",
+                    f"{m_curr['losses'] - m_orig['losses']:+.2f}",
+                    f"{m_curr['gen_mw'] - m_orig['gen_mw']:+.2f}"
+                ]
+            }
+            st.table(pd.DataFrame(comp_data))
+            
+            # Analysis Text
+            st.markdown("### 📝 Executive Summary")
+            
+            summary_points = []
+            
+            # Voltage Analysis
+            v_diff = m_curr['min_voltage'] - m_orig['min_voltage']
+            if v_diff > 0.01:
+                summary_points.append(f"The minimum system voltage has significantly improved by **{v_diff:.4f} p.u.**, enhancing overall grid stability.")
+            elif v_diff > 0:
+                summary_points.append(f"The minimum system voltage saw a slight improvement of **{v_diff:.4f} p.u.**.")
+            elif v_diff < -0.01:
+                summary_points.append(f"⚠️ Warning: Minimum voltage has degraded by **{abs(v_diff):.4f} p.u.**.")
+            
+            # Loading Analysis
+            l_diff = m_orig['max_loading'] - m_curr['max_loading']
+            if l_diff > 10:
+                summary_points.append(f"Critical thermal congestion was relieved, with peak line loading reducing by **{l_diff:.1f}%**.")
+            elif l_diff > 0:
+                summary_points.append(f"Line loading margins improved by **{l_diff:.1f}%**.")
+                
+            # Losses Analysis
+            loss_diff = m_orig['losses'] - m_curr['losses']
+            if loss_diff > 0.1:
+                summary_points.append(f"Efficiency improvements led to a **{loss_diff:.2f} MW** reduction in total system losses.")
+            
+            # Overall Conclusion
+            if not violations.get('voltage') and not violations.get('thermal') and (len(st.session_state.violations.get('voltage', [])) > 0 or len(st.session_state.violations.get('thermal', [])) > 0):
+                summary_points.append("✅ **All previous network violations have been successfully resolved.**")
+            
+            if summary_points:
+                st.info(" ".join(summary_points))
+            else:
+                st.info("No significant changes detected in key network metrics.")
+
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # Statistics tabs
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
@@ -752,11 +1035,15 @@ if st.session_state.network_loaded and st.session_state.net is not None:
             st.metric("Total Transformers", len(net.trafo) if hasattr(net, 'trafo') else 0)
         
         with col2:
-            total_load = net.load.p_mw.sum() if len(net.load) > 0 else 0
-            total_gen = net.gen.p_mw.sum() if len(net.gen) > 0 else 0
-            st.metric("Total Load (MW)", f"{total_load:.1f}")
-            st.metric("Total Generation (MW)", f"{total_gen:.1f}")
-            st.metric("Power Balance", f"{total_gen - total_load:.1f}")
+            total_load = net.res_load.p_mw.sum() if not net.res_load.empty else 0
+            
+            gen_mw = net.res_gen.p_mw.sum() if not net.res_gen.empty else 0
+            ext_mw = net.res_ext_grid.p_mw.sum() if not net.res_ext_grid.empty else 0
+            total_gen = gen_mw + ext_mw
+            
+            st.metric("Total Load (MW)", f"{total_load:.2f}")
+            st.metric("Total Generation (MW)", f"{total_gen:.2f}")
+            st.metric("Network Losses (MW)", f"{total_gen - total_load:.2f}")
         
         with col3:
             st.metric("Voltage Violations", len(violations.get("voltage", [])))
@@ -771,11 +1058,19 @@ if st.session_state.network_loaded and st.session_state.net is not None:
     with tab3:
         st.markdown("### Violations")
         if violations.get("voltage"):
-            for v in violations["voltage"][:5]:
-                st.warning(f"Bus {v.get('bus')}: {v.get('voltage_pu', 0):.4f} p.u.")
+            for v in violations["voltage"][:10]:
+                v_type = v.get('violation_type', 'unknown').replace('_', ' ').title()
+                val = v.get('voltage_pu', 0)
+                reason = f"{v_type}: {val:.4f} p.u."
+                if v_type == "Disconnected":
+                    reason = "Disconnected (Voltage Collapse/Islanded)"
+                
+                st.warning(f"**Bus {v.get('bus')}** | {reason}")
+        
         if violations.get("thermal"):
-            for t in violations["thermal"][:5]:
-                st.error(f"Line {t.get('line')}: {t.get('loading_percent', 0):.1f}%")
+            for t in violations["thermal"][:10]:
+                loading = t.get('loading_percent', 0)
+                st.error(f"**Line {t.get('line')}** | Thermal Overload: {loading:.1f}% (Limit: 100%)")
         if not violations.get("voltage") and not violations.get("thermal"):
             st.success("No violations detected!")
     
@@ -822,6 +1117,8 @@ if st.session_state.network_loaded and st.session_state.net is not None:
                 st.success(f"✅ All violations resolved in {len(history)} iterations!")
             else:
                 st.warning(f"⚠️ {final_v} violations remaining")
+            
+            st.session_state.show_impact = True
             st.rerun()
         
         st.markdown('<div class="auto-progress"><strong>Status:</strong> Ready to start</div>', unsafe_allow_html=True)
@@ -831,33 +1128,117 @@ if st.session_state.network_loaded and st.session_state.net is not None:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">👤 Interactive Mode</div>', unsafe_allow_html=True)
         
-        plan = st.session_state.orchestrator.plan_control_actions(net, violations)
-        actions = plan.get("actions", [])
-        st.session_state.actions_in_plan = len(actions)
+        # Step 1: Generate Plan
+        if not st.session_state.plan_generated:
+            st.info("Click 'Generate Fix Plan' to analyze the grid and propose control actions.")
+            if st.button("📝 Generate Fix Plan", type="primary", use_container_width=True):
+                with st.spinner("Analyzing grid and generating solutions..."):
+                    try:
+                        plan = st.session_state.orchestrator.plan_control_actions(net, violations)
+                        st.session_state.current_plan = plan.get("actions", [])
+                        st.session_state.plan_generated = True
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error generating plan: {e}")
         
-        if actions:
-            st.markdown("**Proposed Actions:**")
-            selected = []
-            for i, action in enumerate(actions[:5]):
-                if st.checkbox(f"{action.get('action_type', 'Unknown')} - Target: {action.get('target')}", key=f"act_{i}"):
-                    selected.append(action)
+        # Step 2: Review & Modify
+        else:
+            st.markdown("### 🛠️ Review & Modify Action Plan")
+            st.markdown("Edit, reorder, or remove actions below. You can also add new actions.")
             
-            if st.button("✅ Execute Selected", use_container_width=True, type="primary"):
-                for action in selected:
+            # Action List Editor
+            if not st.session_state.current_plan:
+                st.warning("No actions in current plan.")
+            else:
+                for i, action in enumerate(st.session_state.current_plan):
+                    with st.expander(f"Action {i+1}: {action.get('action_type', 'Unknown')} - {action.get('target', 'N/A')}", expanded=True):
+                        col1, col2, col3 = st.columns([2, 1, 1])
+                        
+                        # Edit Type
+                        new_type = col1.selectbox("Type", 
+                                                ["switch_line", "switch_capacitor", "adjust_gen_voltage", "adjust_transformer", "shed_load", "add_battery"],
+                                                index=["switch_line", "switch_capacitor", "adjust_gen_voltage", "adjust_transformer", "shed_load", "add_battery"].index(action.get('action_type', 'switch_line')) if action.get('action_type') in ["switch_line", "switch_capacitor", "adjust_gen_voltage", "adjust_transformer", "shed_load", "add_battery"] else 0,
+                                                key=f"type_{i}")
+                        
+                        # Edit Value
+                        if new_type in ["switch_capacitor", "adjust_gen_voltage", "shed_load", "add_battery"]:
+                            new_val = col2.number_input("Value", value=float(action.get("value", 0.0)), key=f"val_{i}")
+                            action["value"] = new_val
+                        
+                        # Delete Button
+                        if col3.button("🗑️ Remove", key=f"del_{i}"):
+                            st.session_state.current_plan.pop(i)
+                            st.rerun()
+                        
+                        action["action_type"] = new_type
+            
+            # Add New Action Section
+            st.markdown("#### ➕ Add New Action")
+            with st.form("add_action_form"):
+                c1, c2, c3 = st.columns(3)
+                new_act_type = c1.selectbox("Action Type", ["switch_line", "switch_capacitor", "adjust_gen_voltage", "shed_load"])
+                new_act_target = c2.number_input("Target ID (Bus/Line)", min_value=0, step=1)
+                new_act_val = c3.number_input("Value (MW/MVAR/p.u.)", value=0.0)
+                
+                if st.form_submit_button("Add to Plan"):
+                    st.session_state.current_plan.append({
+                        "action_type": new_act_type,
+                        "target": int(new_act_target),
+                        "value": new_act_val,
+                        "reason": "User added manually"
+                    })
+                    st.rerun()
+
+                    st.rerun()
+
+            # Analysis Sections
+            st.markdown("### 📊 Analysis & Insights")
+            with st.expander("🔍 Detailed Violation Analysis", expanded=False):
+                if violations.get("voltage"):
+                    st.markdown("**Voltage Violations:**")
+                    for v in violations["voltage"]:
+                        st.write(f"- Bus {v['bus']}: {v['voltage_pu']:.4f} p.u. ({v['violation_type']})")
+                if violations.get("thermal"):
+                    st.markdown("**Thermal Violations:**")
+                    for t in violations["thermal"]:
+                        st.write(f"- Line {t['line']}: {t['loading_percent']:.1f}% Loading")
+            
+            with st.expander("📚 Referral Analysis (Context)", expanded=False):
+                st.info("Here you would see relevant excerpts from technical documentation or past similar cases.")
+                st.markdown("""
+                *   **IEEE Standard 1547**: Voltage regulation requirements for distributed resources.
+                *   **Operator Guide**: "In case of thermal overload on Line 3, prioritize generation shifting over load shedding."
+                """)
+
+            # Step 3: Execute
+            st.markdown("---")
+            c1, c2 = st.columns(2)
+            
+            if c1.button("✅ Execute Plan", type="primary", use_container_width=True):
+                progress_bar = st.progress(0)
+                for i, action in enumerate(st.session_state.current_plan):
                     success, msg = execute_action(net, action)
                     if success:
                         st.session_state.actions_executed += 1
                         log_activity(msg, "Interactive")
+                    progress_bar.progress((i + 1) / len(st.session_state.current_plan))
                 
+                # Re-run power flow
                 try:
                     net = st.session_state.solver.run(net)
                     st.session_state.net = net
                     st.session_state.violations = st.session_state.solver.detect_violations(net)
+                    st.session_state.show_impact = True
+                    st.session_state.plan_generated = False # Reset for next cycle
+                    st.session_state.current_plan = []
                 except:
                     pass
                 st.rerun()
-        else:
-            st.success("No actions needed")
+            
+            if c2.button("❌ Discard Plan", type="secondary", use_container_width=True):
+                st.session_state.plan_generated = False
+                st.session_state.current_plan = []
+                st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -868,3 +1249,20 @@ else:
         <p>Select a network and click "Load Network & Analyze" to begin.</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        selected_net = st.selectbox("Select Network to Analyze", 
+                                  ["IEEE 33-Bus", "IEEE 30-Bus", "IEEE 14-Bus", "IEEE 4-Bus"],
+                                  index=0) # Default to 33-bus to match screenshot
+        
+        if st.button("🚀 Load Network & Start Analysis", use_container_width=True, type="primary"):
+            st.session_state.net = load_network(selected_net)
+            st.session_state.net_original = copy.deepcopy(st.session_state.net)
+            st.session_state.violations = st.session_state.solver.detect_violations(st.session_state.net)
+            st.session_state.network_loaded = True
+            st.session_state.start_time = datetime.now()
+            st.session_state.show_impact = False
+            log_activity(f"Loaded {selected_net}", "System")
+            st.rerun()

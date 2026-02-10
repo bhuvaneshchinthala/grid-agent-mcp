@@ -4,10 +4,26 @@ Provides chain-of-thought reasoning, confidence scoring, and agent collaboration
 """
 
 import json
+import os
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from abc import ABC, abstractmethod
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # Fallback for environments where dotenv package is missing
+    print("WARNING: 'python-dotenv' not found. Attempting manual .env load.")
+    def load_dotenv(*args, **kwargs):
+        env_path = Path(__file__).parent.parent.parent / ".env"
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                for line in f:
+                    if '=' in line and not line.startswith('#'):
+                        key, value = line.strip().split('=', 1)
+                        os.environ[key] = value
+    load_dotenv()
 
 # Optional ollama import
 try:
@@ -16,6 +32,13 @@ try:
 except ImportError:
     OLLAMA_AVAILABLE = False
     ollama = None
+
+# Optional groq import
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 
 
 class BaseAgent:
@@ -26,13 +49,33 @@ class BaseAgent:
     - Agent collaboration protocol
     - Decision explainability
     - Contextual memory with similarity matching
+    - Support for both local (Ollama) and cloud (Groq) LLMs
     """
     
     def __init__(self, agent_name: str, model: str = "mistral", memory_dir: str = "data/memories"):
         self.agent_name = agent_name
-        self.model = model
         self.memory_dir = Path(memory_dir)
         self.memory_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize Groq client if API key is present
+        self.groq_client = None
+        self.use_groq = False
+        self.model = model
+        
+        api_key = os.environ.get("GROQ_API_KEY")
+        if api_key and GROQ_AVAILABLE:
+            try:
+                self.groq_client = Groq(api_key=api_key)
+                self.use_groq = True
+                # Map generic model names to Groq equivalents if needed
+                if model in ["mistral", "llama2", "tinyllama"]:
+                    self.model = "llama-3.3-70b-versatile"  # Updated high-performance model
+                print(f"[{agent_name}] Using Groq API with model {self.model}")
+            except Exception as e:
+                print(f"[{agent_name}] Failed to initialize Groq: {e}. Falling back to Ollama.")
+        else:
+             print(f"[{agent_name}] Using local Ollama with model {self.model}")
+
         
         self.decision_history = []
         self.successful_actions = []
@@ -50,6 +93,35 @@ class BaseAgent:
         
         self._load_memory()
     
+    def _call_llm(self, messages: List[Dict], temperature: float = 0.1, max_tokens: int = 1024) -> str:
+        """Abstracts the LLM call to support both Groq and Ollama"""
+        if self.use_groq and self.groq_client:
+            try:
+                chat_completion = self.groq_client.chat.completions.create(
+                    messages=messages,
+                    model=self.model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format={"type": "json_object"} if "json" in messages[-1]["content"].lower() else None
+                )
+                return chat_completion.choices[0].message.content
+            except Exception as e:
+                print(f"Groq Error: {e}")
+                return "{}"
+        elif OLLAMA_AVAILABLE:
+            try:
+                response = ollama.chat(
+                    model=self.model,
+                    messages=messages,
+                    options={"temperature": temperature, "num_predict": max_tokens}
+                )
+                return response["message"]["content"]
+            except Exception as e:
+                print(f"Ollama Error: {e}")
+                return "{}"
+        else:
+             return '{"error": "No LLM provider available"}'
+
     def _get_analytical_prompt(self) -> str:
         return f"""You are {self.agent_name}, an expert AI agent for power grid control.
 You approach problems methodically with careful analysis.
@@ -120,13 +192,11 @@ Think through this step-by-step and return JSON with this structure:
 }}"""
 
         try:
-            response = ollama.chat(
-                model=self.model,
+            content = self._call_llm(
                 messages=[{"role": "user", "content": prompt}],
-                options={"temperature": 0.1, "num_predict": 1024}
+                temperature=0.1
             )
             
-            content = response["message"]["content"]
             self.last_reasoning = content
             
             # Parse JSON
@@ -169,13 +239,11 @@ Based on the examples and current problem, recommend actions in JSON format:
 }}"""
 
         try:
-            response = ollama.chat(
-                model=self.model,
+            content = self._call_llm(
                 messages=[{"role": "user", "content": prompt}],
-                options={"temperature": 0, "num_predict": 512}
+                temperature=0.1
             )
             
-            content = response["message"]["content"]
             return self._extract_json(content) or {"error": "Parse failed", "raw": content}
             
         except Exception as e:
@@ -295,13 +363,12 @@ Provide a clear, concise explanation (2-3 sentences) covering:
 Return JSON: {{"explanation": "Your explanation here"}}"""
 
         try:
-            response = ollama.chat(
-                model=self.model,
+            content = self._call_llm(
                 messages=[{"role": "user", "content": prompt}],
-                options={"temperature": 0, "num_predict": 256}
+                temperature=0.1
             )
             
-            result = self._extract_json(response["message"]["content"])
+            result = self._extract_json(content)
             return result.get("explanation", "Unable to generate explanation")
             
         except Exception as e:
