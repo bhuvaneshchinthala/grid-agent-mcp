@@ -58,6 +58,19 @@ VoltAI is an advanced AI-powered smart grid control system that uses multi-agent
 ### Prerequisites
 - Python 3.10+
 - Ollama with Mistral model
+- **Groq API Key** (for advanced LLM reasoning)
+
+### Environment Setup
+
+1. Create a `.env` file in the root directory:
+   ```bash
+   cp .env.example .env
+   ```
+2. Open `.env` and add your Groq API Key:
+   ```env
+   GROQ_API_KEY=gsk_...
+   ```
+
 
 ### Setup
 
